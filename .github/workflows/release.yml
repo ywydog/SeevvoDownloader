@@ -19,7 +19,7 @@ jobs:
           - platform: macos-15
             args: --target aarch64-apple-darwin
             label: macos-aarch64
-          - platform: macos-13
+          - platform: macos-15
             args: --target x86_64-apple-darwin
             label: macos-x86_64
           - platform: windows-2025-vs2026
@@ -51,10 +51,10 @@ jobs:
 
       # Cross-compilation: add the secondary Rust target when building for
       # a different architecture on the same OS runner.
-      # - macOS x86_64 uses a native Intel runner (macos-13), no cross-compile needed.
+      # - macOS x86_64 cross-compiles on the ARM64 macos-15 runner.
       # - Windows ARM64 cross-compiles on x64 runner (NSIS is arch-agnostic).
       - name: Add cross-compilation target
-        if: contains(matrix.args, 'aarch64-pc-windows-msvc')
+        if: contains(matrix.args, 'aarch64-pc-windows-msvc') || contains(matrix.args, 'x86_64-apple-darwin')
         shell: bash
         run: |
           TARGET=$(echo '${{ matrix.args }}' | sed 's/.*--target \([^ ]*\).*/\1/')
