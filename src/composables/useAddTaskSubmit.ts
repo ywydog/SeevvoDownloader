@@ -1,0 +1,398 @@
+/**
+ * @fileoverview Composable encapsulating AddTask submission logic.
+ *
+ * Extracted from AddTask.vue to make the complex branching testable:
+ * - Options building (headers, proxy, user-agent, etc.)
+ * - Manual URI submission with multi-URI rename
+ * - Error classification (engine-not-ready, duplicate, generic)
+ */
+import { ref } from 'vue'
+import type { Ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import { useTaskStore } from '@/stores/task'
+import { usePreferenceStore } from '@/stores/preference'
+import { useAppMessage } from '@/composables/useAppMessage'
+import { handleTaskStart } from '@/composables/useTaskNotifyHandlers'
+import { isEngineReady } from '@/api/aria2'
+import {
+  normalizeUriLines,
+  parseAria2Input,
+  extractDecodedFilename,
+  hasExtension,
+  sanitizeAria2OutHint,
+} from '@shared/utils/batchHelpers'
+import { buildOuts } from '@shared/utils/rename'
+import { invoke } from '@tauri-apps/api/core'
+import { formatLogFields, logger } from '@shared/logger'
+import type {
+  Aria2EngineOptions,
+  BrowserRequestHeader,
+  ExternalDownloadContext,
+  FileCategory,
+  ProxyConfig,
+} from '@shared/types'
+import {
+  sanitizeBrowserRequestHeaders,
+  sanitizeBrowserRequestHeadersWithDiagnostics,
+  sanitizeHttpHeaderOptions,
+  sanitizeSingleHeaderValue,
+} from '@shared/utils/headerSanitize'
+import { getErrorMessage } from '@shared/utils/errorMessage'
+import { buildTaskProxyOptions, getDownloadProxy, type TaskProxyMode } from '@shared/utils/proxy'
+import { resolveUserAgentFromContext } from '@shared/utils/userAgentPolicy'
+
+export { getDownloadProxy } from '@shared/utils/proxy'
+
+export interface AddTaskForm {
+  uris: string
+  out: string
+  dir: string
+  split: number
+  userAgent: string
+  authorization: string
+  httpAuthUsername: string
+  httpAuthPassword: string
+  saveHttpAuth: boolean
+  referer: string
+  cookie: string
+  /** Proxy mode for this task. */
+  proxyMode: TaskProxyMode
+  /** User-entered proxy address when proxyMode is 'manual'. */
+  customProxy: string
+  customProxyUsername?: string
+  customProxyPassword?: string
+  /** Injected from the preference store; used for manual proxy bypass inheritance. */
+  appProxy?: ProxyConfig
+  defaultUserAgent?: string
+  userAgentProfiles?: import('@shared/types').UserAgentProfile[]
+  userAgentRules?: import('@shared/types').UserAgentRule[]
+  requestHeaders: BrowserRequestHeader[]
+  uriRequestContexts?: Record<string, ExternalDownloadContext>
+}
+
+export interface UseAddTaskSubmitOptions {
+  form: Ref<AddTaskForm>
+  onClose: () => void
+}
+
+export interface ManualUriSubmitResult {
+  submittedTaskNames: string[]
+}
+
+interface ManualRegularEntry {
+  uris: string[]
+  options: Aria2EngineOptions
+  hasInputOptions: boolean
+}
+
+/**
+ * Builds aria2 engine options from the add-task form.
+ * Pure function — no side effects, fully testable.
+ */
+export function buildEngineOptions(form: AddTaskForm, context?: ExternalDownloadContext): Aria2EngineOptions {
+  const resolvedUserAgent = resolveUserAgentFromContext({
+    formUserAgent: form.userAgent,
+    context,
+    url: context?.url ?? form.uris,
+    finalUrl: context?.finalUrl,
+    defaultUserAgent: form.defaultUserAgent,
+    profiles: form.userAgentProfiles ?? [],
+    rules: form.userAgentRules ?? [],
+  }).userAgent
+  const headers = {
+    userAgent: sanitizeSingleHeaderValue(resolvedUserAgent),
+    referer: sanitizeSingleHeaderValue(context?.referer ?? form.referer),
+    cookie: sanitizeSingleHeaderValue(context?.cookie ?? form.cookie),
+    authorization: sanitizeSingleHeaderValue(form.authorization),
+  }
+  const options: Aria2EngineOptions = {
+    dir: form.dir,
+    split: String(form.split),
+    // max-connection-per-server is intentionally NOT set per-task.
+    // It uses the global value pushed by on_engine_ready() (Rust), allowing
+    // split (segment count) and max-conn (server connection cap) to be
+    // controlled independently. See: aria2 download_helper.cc:394-401.
+  }
+  if (form.out) options.out = form.out
+  if (headers.userAgent) options['user-agent'] = headers.userAgent
+  if (headers.referer) options.referer = headers.referer
+
+  const browserHeaders = sanitizeBrowserRequestHeaders(context?.requestHeaders ?? form.requestHeaders)
+  const headerLines: string[] = browserHeaders.map((header) => `${header.name}: ${header.value}`)
+  if (headers.cookie) headerLines.push(`Cookie: ${headers.cookie}`)
+  if (headers.authorization) headerLines.push(`Authorization: ${headers.authorization}`)
+  if (headerLines.length > 0) options.header = headerLines
+
+  const httpAuthUsername = sanitizeHttpHeaderOptions({ authorization: form.httpAuthUsername }).authorization ?? ''
+  const httpAuthPassword = sanitizeHttpHeaderOptions({ authorization: form.httpAuthPassword }).authorization ?? ''
+  if (httpAuthUsername) {
+    options['http-user'] = httpAuthUsername
+    options['http-passwd'] = httpAuthPassword
+  }
+
+  Object.assign(
+    options,
+    buildTaskProxyOptions(
+      form.proxyMode,
+      form.customProxy,
+      form.appProxy,
+      form.customProxyUsername,
+      form.customProxyPassword,
+    ),
+  )
+  return options
+}
+
+function summarizeSubmitHeaderForwarding(form: AddTaskForm, context?: ExternalDownloadContext) {
+  const diagnostics = sanitizeBrowserRequestHeadersWithDiagnostics(
+    context?.requestHeaders ?? form.requestHeaders,
+  ).diagnostics
+  return {
+    headerInputCount: diagnostics.inputCount,
+    headerKeptCount: diagnostics.keptCount,
+    headerDroppedCount: diagnostics.droppedCount,
+  }
+}
+
+function mergeAria2InputOptions(base: Aria2EngineOptions, taskOptions: Aria2EngineOptions): Aria2EngineOptions {
+  const merged: Aria2EngineOptions = { ...base }
+  for (const [key, value] of Object.entries(taskOptions)) {
+    if (value === undefined) continue
+    if (key === 'header') {
+      const currentHeaders = merged.header
+      const nextHeaders = Array.isArray(value) ? value : [value]
+      const baseHeaders = Array.isArray(currentHeaders)
+        ? currentHeaders
+        : typeof currentHeaders === 'string'
+          ? [currentHeaders]
+          : []
+      merged.header = [...baseHeaders, ...nextHeaders]
+    } else {
+      merged[key] = value
+    }
+  }
+  return merged
+}
+
+function getScalarOption(options: Aria2EngineOptions, key: string): string {
+  const value = options[key]
+  return typeof value === 'string' ? value : ''
+}
+
+/**
+ * Classifies an error from task submission into a user-friendly category.
+ * Pure function — fully testable.
+ */
+export function classifySubmitError(err: unknown): 'engine-not-ready' | 'duplicate' | 'generic' {
+  const msg = getErrorMessage(err)
+  if (msg.includes('not initialized') || !isEngineReady()) return 'engine-not-ready'
+  if (/duplicate|already/i.test(msg)) return 'duplicate'
+  return 'generic'
+}
+
+/**
+ * Submits manually entered URIs from the textarea.
+ * Handles multi-URI rename with buildOuts.
+ * Returns the list of submitted task display names.
+ */
+export async function submitManualUris(
+  form: AddTaskForm,
+  options: Aria2EngineOptions,
+  taskStore: ReturnType<typeof useTaskStore>,
+  fileCategory?: { enabled: boolean; categories: FileCategory[] },
+  downloadProxy?: string,
+): Promise<ManualUriSubmitResult> {
+  if (!form.uris.trim()) return { submittedTaskNames: [] }
+  const parsedInput = parseAria2Input(form.uris)
+  const allUris = parsedInput.entries.flatMap((entry) => entry.uris)
+  logger.info(
+    'submitManualUris',
+    formatLogFields({
+      regular: allUris.length,
+      hasUserAgent: Boolean(form.userAgent),
+      hasReferer: Boolean(form.referer),
+      hasCookie: Boolean(form.cookie),
+      ...summarizeSubmitHeaderForwarding(form),
+    }),
+  )
+
+  const regularEntries: ManualRegularEntry[] = parsedInput.entries
+    .map((entry) => ({
+      uris: entry.uris,
+      options: mergeAria2InputOptions(options, entry.options),
+      hasInputOptions: Object.keys(entry.options).length > 0,
+    }))
+    .filter((entry) => entry.uris.length > 0)
+  const regularUris = regularEntries.flatMap((entry) => entry.uris)
+  const fileCategoryWithContexts = fileCategory
+    ? { ...fileCategory, contexts: form.uriRequestContexts ?? {} }
+    : undefined
+  const submittedTaskNames: string[] = []
+
+  // Submit regular URIs using the existing path
+  if (regularUris.length > 0) {
+    const canUseGlobalRename = regularEntries.every((entry) => entry.uris.length === 1 && !entry.hasInputOptions)
+    if (canUseGlobalRename && regularUris.length > 1 && form.out) {
+      const regularOptions = { ...options }
+      delete regularOptions.out
+      let outs = buildOuts(regularUris, form.out)
+      if (outs.length === 0) {
+        const dotIdx = form.out.lastIndexOf('.')
+        const base = dotIdx > 0 ? form.out.substring(0, dotIdx) : form.out
+        const ext = dotIdx > 0 ? form.out.substring(dotIdx) : ''
+        outs = regularUris.map((_, i) => `${base}_${i + 1}${ext}`)
+      }
+      await taskStore.addUri({
+        uris: regularUris,
+        outs,
+        options: regularOptions,
+        fileCategory: fileCategoryWithContexts,
+      })
+      submittedTaskNames.push(...regularUris.map((uri, index) => resolveSubmittedTaskName(uri, outs[index])))
+    } else {
+      const contextEntries = form.uriRequestContexts ?? {}
+      for (const entry of regularEntries) {
+        if (entry.uris.length > 1) {
+          await taskStore.addUriAtomic({
+            uris: entry.uris,
+            options: entry.options,
+          })
+          const out = getScalarOption(entry.options, 'out')
+          submittedTaskNames.push(...entry.uris.map((uri) => resolveSubmittedTaskName(uri, out)))
+          continue
+        }
+
+        const outs = await Promise.all(
+          entry.uris.map(async (uri) => {
+            const out = getScalarOption(entry.options, 'out')
+            if (out) return out
+            const pathFilename = extractDecodedFilename(uri)
+            if (!pathFilename || hasExtension(pathFilename)) return ''
+            try {
+              const uriContext = form.uriRequestContexts?.[uri]
+              const sanitizedHeaders = sanitizeHttpHeaderOptions({
+                referer: uriContext?.referer ?? form.referer,
+                cookie: uriContext?.cookie ?? form.cookie,
+              })
+              const args: {
+                url: string
+                proxy: string | null
+                referer?: string
+                cookie?: string
+              } = {
+                url: uri,
+                proxy: downloadProxy ?? null,
+              }
+              if (sanitizedHeaders.referer) args.referer = sanitizedHeaders.referer
+              if (sanitizedHeaders.cookie) args.cookie = sanitizedHeaders.cookie
+              return (await invoke<string | null>('resolve_filename', args)) ?? ''
+            } catch {
+              return ''
+            }
+          }),
+        )
+
+        const hasPerUriContext = entry.uris.some((uri) => contextEntries[uri])
+        if (hasPerUriContext) {
+          const uri = entry.uris[0]
+          await taskStore.addUri({
+            uris: [uri],
+            outs: [outs[0] ?? ''],
+            options: mergeAria2InputOptions(buildEngineOptions(form, contextEntries[uri]), entry.options),
+            fileCategory: fileCategoryWithContexts,
+          })
+        } else {
+          await taskStore.addUri({
+            uris: entry.uris,
+            outs,
+            options: entry.options,
+            fileCategory: fileCategoryWithContexts,
+          })
+        }
+        const out = getScalarOption(entry.options, 'out')
+        submittedTaskNames.push(...entry.uris.map((uri, index) => resolveSubmittedTaskName(uri, out || outs[index])))
+      }
+    }
+  }
+
+  return { submittedTaskNames }
+}
+
+function resolveSubmittedTaskName(uri: string, outHint?: string): string {
+  const out = outHint ? sanitizeAria2OutHint(outHint) : ''
+  return out || extractDecodedFilename(uri) || uri
+}
+
+function buildSubmitErrorLabels(t: (key: string) => string): Parameters<typeof getErrorMessage>[1] {
+  return {
+    fallback: t('task.error-unknown'),
+    labels: { Aria2: t('task.error-aria2-next') },
+  }
+}
+
+export function useAddTaskSubmit({ form, onClose }: UseAddTaskSubmitOptions) {
+  const { t } = useI18n()
+  const router = useRouter()
+  const taskStore = useTaskStore()
+  const preferenceStore = usePreferenceStore()
+  const message = useAppMessage()
+  const submitting = ref(false)
+
+  async function handleSubmit() {
+    if (submitting.value) return
+    submitting.value = true
+
+    try {
+      const options = buildEngineOptions(form.value)
+      let manualResult: ManualUriSubmitResult = { submittedTaskNames: [] }
+
+      if (form.value.uris.trim()) {
+        manualResult = await submitManualUris(
+          form.value,
+          options,
+          taskStore,
+          {
+            enabled: preferenceStore.config.fileCategoryEnabled,
+            categories: preferenceStore.config.fileCategories,
+          },
+          getDownloadProxy(preferenceStore.config.proxy),
+        )
+      }
+
+      const failedCount = 0
+      logger.info('AddTask.submit', `manual=${normalizeUriLines(form.value.uris).length} failed=${failedCount}`)
+      if (failedCount > 0) {
+        message.warning(`${failedCount} ${t('task.failed') || 'failed'}`, { closable: true })
+      } else {
+        onClose()
+
+        // ── Start notification (aggregated) ──────────────────────
+        const taskNames: string[] = [...manualResult.submittedTaskNames]
+        handleTaskStart(taskNames, {
+          messageInfo: message.info,
+          t,
+        })
+
+        if (preferenceStore.config.newTaskShowDownloading !== false) {
+          router.push({ path: '/task/all' }).catch(() => {})
+        }
+      }
+    } catch (e: unknown) {
+      const category = classifySubmitError(e)
+      const errMsg = getErrorMessage(e, buildSubmitErrorLabels(t))
+      logger.error('AddTask.submit', e)
+      if (category === 'engine-not-ready') {
+        message.error(t('app.engine-not-ready'), { closable: true })
+      } else if (category === 'duplicate') {
+        message.warning(errMsg, { closable: true })
+      } else {
+        message.error(errMsg, { closable: true })
+      }
+    } finally {
+      submitting.value = false
+    }
+  }
+
+  return { submitting, handleSubmit }
+}

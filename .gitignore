@@ -1,31 +1,66 @@
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-
-venv/
-env/
-.venv/
-.env
-
-dist/
-build/
-*.spec
-
-.idea/
-.vscode/
-*.swp
-
+# Logs
+logs
 *.log
-Logs/
-.Logs/
-.cache/
-Temporary/
-.Temporary/
-.cache/
-cache/
-Update/
-.Update/
-config/
-.config/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
+# Dependencies
+node_modules
+
+# Build output
+dist
+dist-ssr
+
+# Test coverage output
+coverage
+
+# Tauri / Rust build artifacts
+src-tauri/target
+src-tauri/gen
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Environment variables
+*.local
+.env
+.env.*
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Lock files (use pnpm-lock.yaml only)
+package-lock.json
+
+# Legacy reference codebases
+motrix-legacy/
+motrix-very-legacy/
+
+# Tauri generated files
+src-tauri/gen/
+
+# AI coding tool directories
+.claude/
+.gemini/
+.agent*/
+.aider*
+
+# Runtime data
+*.pid
+*.seed
+*.pid.lock
+.omx/

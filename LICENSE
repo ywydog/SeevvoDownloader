@@ -1,4 +1,4 @@
-                    GNU GENERAL PUBLIC LICENSE
+GNU GENERAL PUBLIC LICENSE
                        Version 3, 29 June 2007
 
  Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>
@@ -672,3 +672,34 @@ may consider it more useful to permit linking proprietary applications with
 the library.  If this is what you want to do, use the GNU Lesser General
 Public License instead of this License.  But first, please read
 <https://www.gnu.org/licenses/why-not-lgpl.html>.
+
+--------------------------------------------------------------------------
+
+SeevvoDownloader
+Copyright (C) 2026 ywydog
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+--------------------------------------------------------------------------
+
+### 上游与素材声明
+
+- 本作品由 **motrix-next**（GNU General Public License v3.0，Copyright (c) 2025-present
+  AnInsomniacy）重构而来，其架构与设计沿用自该 GPL-3.0 项目。本作品整体同样以
+  GPL-3.0 发布，符合上游许可证的派生与兼容要求。
+- 应用图标来源于 **SeevvoDownloader**（GNU General Public License v3.0，
+  作者 HelloGaoo / WHYOS），复用其 `icon/003.ico` 并按尺寸重生成。
+- Aiwb 项目清单数据整理自 **awesome-iwb**（CC BY-NC-SA 4.0）。
+
+更多第三方素材与许可见 `THIRD_PARTY_NOTICES.md`。

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "SeevvoDownloader - 希沃全家桶一键下载",
+        "width": 1068,
+        "height": 680,
+        "minWidth": 373,
+        "minHeight": 240,
+        "transparent": true,
+        "decorations": false,
+        "visible": false,
+        "center": true,
+        "shadow": true,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --enable-features=msSmoothScrolling --animation-policy=allowed"
+      }
+    ]
+  }
+}

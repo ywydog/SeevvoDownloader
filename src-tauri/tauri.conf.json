@@ -1,0 +1,115 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "SeevvoDownloader",
+  "identifier": "com.seevvo.downloader",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "SeevvoDownloader - 希沃全家桶一键下载",
+        "width": 1068,
+        "height": 680,
+        "minWidth": 373,
+        "minHeight": 240,
+        "transparent": true,
+        "decorations": false,
+        "visible": false,
+        "center": true,
+        "shadow": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost data: blob:; media-src 'self' asset: http://asset.localhost data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+    },
+    "macOSPrivateApi": true
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "publisher": "ywydog",
+    "copyright": "Copyright © 2026 ywydog",
+    "createUpdaterArtifacts": true,
+    "externalBin": ["binaries/motrix-next-engine"],
+    "resources": [],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+    "macOS": {
+      "signingIdentity": "-",
+      "dmg": {
+        "background": "dmg/background.png",
+        "windowSize": {
+          "width": 660,
+          "height": 400
+        },
+        "appPosition": {
+          "x": 180,
+          "y": 170
+        },
+        "applicationFolderPosition": {
+          "x": 480,
+          "y": 170
+        }
+      }
+    },
+    "windows": {
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "headerImage": "nsis/header.bmp",
+        "sidebarImage": "nsis/sidebar.bmp",
+        "installMode": "both",
+        "displayLanguageSelector": true,
+        "languages": [
+          "Arabic",
+          "Bulgarian",
+          "Catalan",
+          "German",
+          "Greek",
+          "English",
+          "Spanish",
+          "Farsi",
+          "French",
+          "Hungarian",
+          "Hindi",
+          "Indonesian",
+          "Italian",
+          "Japanese",
+          "Korean",
+          "Norwegian",
+          "Dutch",
+          "Polish",
+          "PortugueseBR",
+          "Romanian",
+          "Russian",
+          "Thai",
+          "Turkish",
+          "Ukrainian",
+          "Vietnamese",
+          "SimpChinese",
+          "TradChinese"
+        ],
+        "installerHooks": "nsis/hooks.nsh"
+      }
+    },
+    "linux": {
+      "deb": {
+        "desktopTemplate": "linux/seevvo-downloader.desktop.hbs"
+      },
+      "rpm": {
+        "desktopTemplate": "linux/seevvo-downloader.desktop.hbs"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": ["https://github.com/HelloGaoo/SeevvoDownloader/releases/download/updater/latest.json"]
+    },
+    "sql": {
+      "preload": ["sqlite:history.db"]
+    }
+  }
+}

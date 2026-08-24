@@ -1,0 +1,22 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "SeevvoDownloader",
+        "width": 1068,
+        "height": 680,
+        "minWidth": 373,
+        "minHeight": 240,
+        "decorations": true,
+        "hiddenTitle": true,
+        "titleBarStyle": "Overlay",
+        "transparent": true,
+        "visible": false,
+        "center": true,
+        "shadow": true
+      }
+    ]
+  }
+}

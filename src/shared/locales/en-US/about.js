@@ -1,0 +1,15 @@
+export default {
+  'engine-version': 'Engine Version',
+  'license': 'License',
+  'about': 'About',
+  'release': 'Release Notes',
+  'support': 'Support',
+  'description': 'A full-featured download manager — rebuilt from the ground up.',
+  'copied': '{label} copied',
+  'click-to-copy': 'Click to copy',
+  'version-copied': '{label} version copied',
+  'app-version': 'SeevvoDownloader Version',
+  'aria2-version': 'Aria2 Next Version',
+  'loading': 'Loading…',
+  'unavailable': 'Unavailable',
+}

@@ -1,0 +1,121 @@
+/* ── Global Reset ──────────────────────────────────────────────────── */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  font-family: var(--font-family);
+  font-variant: tabular-nums;
+  font-size: var(--font-size-base);
+  color: var(--m3-on-surface);
+  background: transparent;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Scrollbar (M3-aware) ──────────────────────────────────────────── */
+/* Width is 6px instead of 8px to avoid overlapping the ~8px CSD       */
+/* (Client-Side Decoration) resize margin that Tauri creates on all    */
+/* window edges under Wayland (decorations: false). An 8px scrollbar   */
+/* flush against the window edge falls entirely inside the resize       */
+/* hitbox, making it un-draggable and "sticky" after a window resize.   */
+/* 6px breaks the full overlap. macOS/Windows are unaffected — their    */
+/* WMs handle resize outside the webview. Ref: tao#892, wry#1167.      */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 8px;
+  background-color: var(--m3-scrollbar-thumb);
+}
+
+::-webkit-scrollbar-thumb:window-inactive {
+  background-color: var(--m3-scrollbar-thumb-inactive);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ── Base Element Styles ───────────────────────────────────────────── */
+a {
+  color: var(--m3-primary);
+  text-decoration: none;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* ── Global Text Selection ────────────────────────────────────────── */
+/* Native desktop apps do not allow selecting UI labels/headings.     */
+/* Opt-in whitelist preserves text interaction where users expect it.  */
+body {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+input,
+textarea,
+[contenteditable],
+code,
+pre,
+.n-input,
+.n-input__textarea-el,
+.n-input__input-el,
+.user-selectable {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.technical-text-wrap {
+  white-space: normal;
+  overflow-wrap: normal;
+  word-break: break-all;
+  hyphens: none;
+}
+
+/* ── Draggable Regions ─────────────────────────────────────────────── */
+.draggable {
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.non-draggable {
+  -webkit-app-region: no-drag;
+}
+
+/* ── Page hidden: pause all infinite animations ────────────────────── */
+/* Prevents WebView2 from re-compositing layers each frame when the     */
+/* window is minimized or the user switches to another app.             */
+/* Toggled by the useVisibilityPause composable via Page Visibility API */
+.animations-paused *,
+.animations-paused *::before,
+.animations-paused *::after {
+  animation-play-state: paused !important;
+}

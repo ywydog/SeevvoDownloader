@@ -1,0 +1,68 @@
+/* ── Naive UI Transition Overrides ─────────────────────────────────── */
+.n-tabs-pane-wrapper {
+  transition:
+    opacity 0.18s cubic-bezier(0.2, 0, 0, 1),
+    height 0.3s cubic-bezier(0.2, 0, 0, 1) !important;
+  overflow: hidden;
+}
+
+.n-tab-pane-enter-active {
+  transition: opacity 0.18s cubic-bezier(0.2, 0, 0, 1) !important;
+  transform: none !important;
+}
+
+.n-tab-pane-leave-active {
+  transition: opacity 0.12s cubic-bezier(0.3, 0, 0.8, 0.15) !important;
+  transform: none !important;
+}
+
+.n-tab-pane-enter-from,
+.n-tab-pane-leave-to {
+  opacity: 0 !important;
+  transform: none !important;
+}
+
+.n-modal-mask-enter-active {
+  transition: opacity 0.25s cubic-bezier(0.2, 0, 0, 1) !important;
+}
+
+.n-modal-mask-leave-active {
+  transition: opacity 0.15s cubic-bezier(0.3, 0, 0.8, 0.15) !important;
+}
+
+.n-modal-body-wrapper--enter-active {
+  transition:
+    opacity 0.3s cubic-bezier(0.2, 0, 0, 1),
+    transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+.n-modal-body-wrapper--leave-active {
+  transition:
+    opacity 0.15s cubic-bezier(0.3, 0, 0.8, 0.15),
+    transform 0.15s cubic-bezier(0.3, 0, 0.8, 0.15) !important;
+}
+
+.n-modal-body-wrapper--enter-from {
+  opacity: 0 !important;
+  transform: scale(0.92) !important;
+}
+
+.n-modal-body-wrapper--leave-to {
+  opacity: 0 !important;
+  transform: scale(0.96) !important;
+}
+
+.n-dialog {
+  transform-origin: center center !important;
+}
+
+.n-dialog .n-button {
+  min-width: 68px;
+  height: 32px;
+  padding: 0 16px;
+}
+
+.n-drawer-container,
+.n-modal-mask {
+  overflow: hidden;
+}
